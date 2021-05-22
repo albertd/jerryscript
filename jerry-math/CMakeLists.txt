@@ -18,11 +18,11 @@ project (${JERRY_MATH_NAME} C)
 
 # Compiler / linker flags
 # TODO: Reduce the below list of warning/error disablings as much as possible
-set(COMPILE_FLAGS_MATH "${COMPILE_FLAGS_MATH} -Wno-error=sign-compare")
-set(COMPILE_FLAGS_MATH "${COMPILE_FLAGS_MATH} -Wno-error=sign-conversion")
-set(COMPILE_FLAGS_MATH "${COMPILE_FLAGS_MATH} -Wno-sign-conversion")
-set(COMPILE_FLAGS_MATH "${COMPILE_FLAGS_MATH} -Wno-sign-compare")
-set(COMPILE_FLAGS_MATH "${COMPILE_FLAGS_MATH} -Wno-strict-aliasing")
+set(COMPILE_FLAGS_MATH_GCC_CLANG "${COMPILE_FLAGS_MATH_GCC_CLANG} -Wno-error=sign-compare")
+set(COMPILE_FLAGS_MATH_GCC_CLANG "${COMPILE_FLAGS_MATH_GCC_CLANG} -Wno-error=sign-conversion")
+set(COMPILE_FLAGS_MATH_GCC_CLANG "${COMPILE_FLAGS_MATH_GCC_CLANG} -Wno-sign-conversion")
+set(COMPILE_FLAGS_MATH_GCC_CLANG "${COMPILE_FLAGS_MATH_GCC_CLANG} -Wno-sign-compare")
+set(COMPILE_FLAGS_MATH_GCC_CLANG "${COMPILE_FLAGS_MATH_GCC_CLANG} -Wno-strict-aliasing")
 
 # Include directories
 set(INCLUDE_MATH "${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -71,7 +71,7 @@ if(ENABLE_AMALGAM)
   set(AMALGAM_MATH_H "${CMAKE_BINARY_DIR}/amalgam/math.h")
 
   add_custom_command(OUTPUT ${AMALGAM_MATH_C} ${AMALGAM_MATH_H}
-                     COMMAND python ${CMAKE_SOURCE_DIR}/tools/amalgam.py
+                     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tools/amalgam.py
                              --jerry-math
                              --output-dir ${CMAKE_BINARY_DIR}/amalgam
                      DEPENDS ${SOURCE_MATH}
@@ -85,9 +85,10 @@ if(ENABLE_AMALGAM)
 endif()
 
 add_library(${JERRY_MATH_NAME} ${SOURCE_MATH})
-set_property(TARGET ${JERRY_MATH_NAME}
-             PROPERTY COMPILE_FLAGS "${COMPILE_FLAGS_MATH}")
-
+if(USING_GCC OR USING_CLANG)
+  set_property(TARGET ${JERRY_MATH_NAME}
+               PROPERTY COMPILE_FLAGS "${COMPILE_FLAGS_MATH_GCC_CLANG}")
+endif()
 target_include_directories(${JERRY_MATH_NAME} PUBLIC ${INCLUDE_MATH})
 
 configure_file(libjerry-math.pc.in libjerry-math.pc @ONLY)

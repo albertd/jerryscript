@@ -50,13 +50,11 @@ register_js_value (const char *name_p, /**< name of the function */
 } /* register_js_value */
 
 static jerry_value_t
-assert_handler (const jerry_value_t func_obj_val, /**< function object */
-                const jerry_value_t this_val, /**< this arg */
+assert_handler (const jerry_call_info_t *call_info_p, /**< call information */
                 const jerry_value_t args_p[], /**< function arguments */
                 const jerry_length_t args_cnt) /**< number of function arguments */
 {
-  JERRY_UNUSED (func_obj_val);
-  JERRY_UNUSED (this_val);
+  JERRY_UNUSED (call_info_p);
 
   if (jerry_value_is_boolean (args_p[0])
       && jerry_get_boolean_value (args_p[0]))
@@ -69,7 +67,8 @@ assert_handler (const jerry_value_t func_obj_val, /**< function object */
         && jerry_value_is_string (args_p[1]))
     {
       jerry_length_t utf8_sz = jerry_get_string_size (args_p[1]);
-      JERRY_VLA (char, string_from_utf8, utf8_sz);
+      TEST_ASSERT (utf8_sz <= 127); /* 127 is the expected max assert fail message size. */
+      JERRY_VLA (char, string_from_utf8, utf8_sz + 1);
       string_from_utf8[utf8_sz] = 0;
 
       jerry_string_to_char_buffer (args_p[1], (jerry_char_t *) string_from_utf8, utf8_sz);
@@ -458,10 +457,28 @@ static void test_property_by_index (test_entry_t test_entries[])
     }
 
     jerry_value_t set_undefined = jerry_set_property_by_index (typedarray, 100, jerry_create_number (50));
-    TEST_ASSERT (jerry_value_is_error (set_undefined));
-    jerry_value_t get_undefined = jerry_get_property_by_index (typedarray, 100);
-    TEST_ASSERT (jerry_value_is_undefined (get_undefined));
 
+    if (type == JERRY_TYPEDARRAY_BIGINT64 || type == JERRY_TYPEDARRAY_BIGUINT64)
+    {
+      TEST_ASSERT (jerry_value_is_error (set_undefined));
+    }
+    else
+    {
+      TEST_ASSERT (jerry_value_is_boolean (set_undefined) && !jerry_get_boolean_value (set_undefined));
+    }
+
+    jerry_value_t get_undefined = jerry_get_property_by_index (typedarray, 100);
+
+    if (type == JERRY_TYPEDARRAY_BIGINT64 || type == JERRY_TYPEDARRAY_BIGUINT64)
+    {
+      TEST_ASSERT (jerry_value_is_error (set_undefined));
+    }
+    else
+    {
+      TEST_ASSERT (jerry_value_is_undefined (get_undefined));
+    }
+
+    TEST_ASSERT (jerry_value_is_undefined (get_undefined));
     jerry_release_value (set_undefined);
     jerry_release_value (get_undefined);
     jerry_release_value (typedarray);

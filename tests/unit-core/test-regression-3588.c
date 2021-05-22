@@ -22,13 +22,11 @@
  * Empty constructor
  */
 static jerry_value_t
-construct_handler (const jerry_value_t func_obj_val, /**< function object */
-                   const jerry_value_t this_val, /**< this arg */
+construct_handler (const jerry_call_info_t *call_info_p, /**< call information */
                    const jerry_value_t args_p[], /**< function arguments */
                    const jerry_length_t args_cnt) /**< number of function arguments */
 {
-  JERRY_UNUSED (func_obj_val);
-  JERRY_UNUSED (this_val);
+  JERRY_UNUSED (call_info_p);
 
   TEST_ASSERT (args_cnt == 1);
   TEST_ASSERT (jerry_get_number_value (args_p[0]) == 1.0);
@@ -68,11 +66,9 @@ main (void)
         "new Sub1 ()"
     );
 
-    jerry_value_t parsed_code_val = jerry_parse (NULL,
-                                                 0,
-                                                 test_source,
+    jerry_value_t parsed_code_val = jerry_parse (test_source,
                                                  sizeof (test_source) - 1,
-                                                 JERRY_PARSE_NO_OPTS);
+                                                 NULL);
     TEST_ASSERT (!jerry_value_is_error (parsed_code_val));
 
     jerry_value_t result = jerry_run (parsed_code_val);
@@ -88,11 +84,9 @@ main (void)
       "new Sub2 (1)"
     );
 
-    jerry_value_t parsed_code_val = jerry_parse (NULL,
-                                                 0,
-                                                 test_source,
+    jerry_value_t parsed_code_val = jerry_parse (test_source,
                                                  sizeof (test_source) - 1,
-                                                 JERRY_PARSE_NO_OPTS);
+                                                 NULL);
     TEST_ASSERT (!jerry_value_is_error (parsed_code_val));
 
     jerry_value_t result = jerry_run (parsed_code_val);

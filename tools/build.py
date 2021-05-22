@@ -138,6 +138,8 @@ def get_arguments():
                          help=devhelp('enable mem-stress test (%(choices)s)'))
     coregrp.add_argument('--profile', metavar='FILE',
                          help='specify profile file')
+    coregrp.add_argument('--promise-callback', metavar='X', choices=['ON', 'OFF'], type=str.upper,
+                         help='enable promise callback (%(choices)s)')
     coregrp.add_argument('--regexp-strict-mode', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                          help=devhelp('enable regexp strict mode (%(choices)s)'))
     coregrp.add_argument('--show-opcodes', metavar='X', choices=['ON', 'OFF'], type=str.upper,
@@ -212,6 +214,7 @@ def generate_build_options(arguments):
     build_options_append('JERRY_MEM_STATS', arguments.mem_stats)
     build_options_append('JERRY_MEM_GC_BEFORE_EACH_ALLOC', arguments.mem_stress_test)
     build_options_append('JERRY_PROFILE', arguments.profile)
+    build_options_append('JERRY_PROMISE_CALLBACK', arguments.promise_callback)
     build_options_append('JERRY_REGEXP_STRICT_MODE', arguments.regexp_strict_mode)
     build_options_append('JERRY_PARSER_DUMP_BYTE_CODE', arguments.show_opcodes)
     build_options_append('JERRY_REGEXP_DUMP_BYTE_CODE', arguments.show_regexp_opcodes)
@@ -269,7 +272,7 @@ def make_jerry(arguments):
     return proc.returncode
 
 def install_jerry(arguments):
-    install_target = 'INSTALL' if sys.platform == 'win32' else 'install'
+    install_target = 'INSTALL' if os.path.exists(os.path.join(arguments.builddir, 'Jerry.sln')) else 'install'
     make_cmd = ['cmake', '--build', arguments.builddir, '--config', arguments.build_type, '--target', install_target]
     return subprocess.call(make_cmd)
 

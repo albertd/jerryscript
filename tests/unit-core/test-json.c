@@ -19,13 +19,11 @@
 #include "test-common.h"
 
 static jerry_value_t
-custom_to_json (const jerry_value_t func_obj_val, /**< function object */
-                const jerry_value_t this_val, /**< this value */
+custom_to_json (const jerry_call_info_t *call_info_p, /**< call information */
                 const jerry_value_t args_p[], /**< arguments list */
                 const jerry_length_t args_cnt) /**< arguments length */
 {
-  JERRY_UNUSED (func_obj_val);
-  JERRY_UNUSED (this_val);
+  JERRY_UNUSED (call_info_p);
   JERRY_UNUSED (args_p);
   JERRY_UNUSED (args_cnt);
 
@@ -55,6 +53,7 @@ main (void)
     TEST_ASSERT (jerry_value_is_string (name_value) == true);
 
     jerry_size_t name_size = jerry_get_string_size (name_value);
+    TEST_ASSERT (name_size == 4);
     JERRY_VLA (jerry_char_t, name_data, name_size + 1);
     jerry_size_t copied = jerry_string_to_char_buffer (name_value, name_data, name_size);
     name_data[name_size] = '\0';
@@ -129,12 +128,13 @@ main (void)
 
     jerry_release_value (obj);
 
+    const char check_value[] = "{\"name\":\"John\",\"age\":32}";
     jerry_size_t json_size = jerry_get_string_size (json_string);
+    TEST_ASSERT (json_size == strlen (check_value));
     JERRY_VLA (jerry_char_t, json_data, json_size + 1);
     jerry_string_to_char_buffer (json_string, json_data, json_size);
     json_data[json_size] = '\0';
 
-    const char check_value[] = "{\"name\":\"John\",\"age\":32}";
     TEST_ASSERT_STR (check_value, json_data);
 
     jerry_release_value (json_string);

@@ -127,42 +127,6 @@ jerry_port_release_source (uint8_t *buffer_p) /**< buffer to free */
 } /* jerry_port_release_source */
 
 /**
- * Normalize a file path
- *
- * @return length of the path written to the output buffer
- */
-size_t
-jerry_port_normalize_path (const char *in_path_p,   /**< input file path */
-                           char *out_buf_p,         /**< output buffer */
-                           size_t out_buf_size,     /**< size of output buffer */
-                           char *base_file_p) /**< base file path */
-{
-  (void) base_file_p;
-
-  size_t len = strlen (in_path_p);
-  if (len + 1 > out_buf_size)
-  {
-    return 0;
-  }
-
-  /* Return the original string. */
-  strcpy (out_buf_p, in_path_p);
-  return len;
-} /* jerry_port_normalize_path */
-
-/**
- * Get the module object of a native module.
- *
- * @return undefined
- */
-jerry_value_t
-jerry_port_get_native_module (jerry_value_t name) /**< module specifier */
-{
-  (void) name;
-  return jerry_create_undefined ();
-} /* jerry_port_get_native_module */
-
-/**
  * Dummy function to get the time zone adjustment.
  *
  * @return 0
@@ -227,32 +191,3 @@ jerry_port_get_current_context (void)
 {
   return current_context_p;
 } /* jerry_port_get_current_context */
-
-/**
- * Track unhandled promise rejections.
- *
- * Note:
- *      This port function is called by jerry-core when JERRY_BUILTIN_PROMISE
- *      is enabled.
- *
- * @param promise rejected promise
- * @param operation HostPromiseRejectionTracker operation
- */
-void
-jerry_port_track_promise_rejection (const jerry_value_t promise,
-                                    const jerry_promise_rejection_operation_t operation)
-{
-  (void) operation; /* unused */
-
-  jerry_value_t reason = jerry_get_promise_result (promise);
-  jerry_value_t reason_to_string = jerry_value_to_string (reason);
-  jerry_size_t req_sz = jerry_get_utf8_string_size (reason_to_string);
-  jerry_char_t str_buf_p[req_sz + 1];
-  jerry_string_to_utf8_char_buffer (reason_to_string, str_buf_p, req_sz);
-  str_buf_p[req_sz] = '\0';
-
-  jerry_release_value (reason_to_string);
-  jerry_release_value (reason);
-
-  jerry_port_log (JERRY_LOG_LEVEL_WARNING, "Uncaught (in promise) %s\n", str_buf_p);
-} /* jerry_port_track_promise_rejection */

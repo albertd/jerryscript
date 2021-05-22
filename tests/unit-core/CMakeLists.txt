@@ -50,6 +50,7 @@ set(SOURCE_UNIT_TEST_MAIN_MODULES
   test-exec-stop.c
   test-external-string.c
   test-from-property-descriptor.c
+  test-get-own-property.c
   test-has-property.c
   test-internal-properties.c
   test-jmem.c
@@ -57,14 +58,17 @@ set(SOURCE_UNIT_TEST_MAIN_MODULES
   test-lit-char-helpers.c
   test-literal-storage.c
   test-mem-stats.c
+  test-module.c
   test-native-callback-nested.c
   test-native-instanceof.c
+  test-native-pointer.c
   test-newtarget.c
   test-number-converter.c
   test-number-to-int32.c
   test-number-to-string.c
   test-objects-foreach.c
   test-poolman.c
+  test-promise-callback.c
   test-promise.c
   test-proxy.c
   test-realm.c
@@ -74,6 +78,7 @@ set(SOURCE_UNIT_TEST_MAIN_MODULES
   test-regression-3588.c
   test-resource-name.c
   test-snapshot.c
+  test-special-proxy.c
   test-string-to-number.c
   test-stringbuilder.c
   test-strings.c

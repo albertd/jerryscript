@@ -78,6 +78,50 @@ restart:
     main_source_t *source_file_p = sources_p + source_index;
     const char *file_path_p = argv[source_file_p->path_index];
 
+    if (source_file_p->type == SOURCE_MODULE)
+    {
+      jerry_value_t specifier = jerry_create_string_from_utf8 ((const jerry_char_t *) file_path_p);
+      jerry_value_t referrer = jerry_create_undefined ();
+      ret_value = jerry_port_module_resolve (specifier, referrer, NULL);
+      jerry_release_value (referrer);
+      jerry_release_value (specifier);
+
+      if (!jerry_value_is_error (ret_value))
+      {
+        if (jerry_module_get_state (ret_value) != JERRY_MODULE_STATE_UNLINKED)
+        {
+          /* A module can be evaluated only once. */
+          jerry_release_value (ret_value);
+          continue;
+        }
+
+        jerry_value_t link_val = jerry_module_link (ret_value, NULL, NULL);
+
+        if (jerry_value_is_error (link_val))
+        {
+          jerry_release_value (ret_value);
+          ret_value = link_val;
+        }
+        else
+        {
+          jerry_release_value (link_val);
+
+          jerry_value_t module_val = ret_value;
+          ret_value = jerry_module_evaluate (module_val);
+          jerry_release_value (module_val);
+        }
+      }
+
+      if (jerry_value_is_error (ret_value))
+      {
+        main_print_unhandled_exception (ret_value);
+        goto exit;
+      }
+
+      jerry_release_value (ret_value);
+      continue;
+    }
+
     size_t source_size;
     uint8_t *source_p = jerry_port_read_source (file_path_p, &source_size);
 
@@ -85,8 +129,6 @@ restart:
     {
       goto exit;
     }
-
-    uint32_t parse_opts = JERRY_PARSE_NO_OPTS;
 
     switch (source_file_p->type)
     {
@@ -100,11 +142,6 @@ restart:
         jerry_port_release_source (source_p);
         break;
       }
-      case SOURCE_MODULE:
-      {
-        parse_opts = JERRY_PARSE_MODULE;
-        /* FALLTHRU */
-      }
       default:
       {
         assert (source_file_p->type == SOURCE_SCRIPT
@@ -117,11 +154,14 @@ restart:
           goto exit;
         }
 
-        ret_value = jerry_parse ((jerry_char_t *) file_path_p,
-                                 strlen (file_path_p),
-                                 source_p,
+        jerry_parse_options_t parse_options;
+        parse_options.options = JERRY_PARSE_HAS_RESOURCE;
+        parse_options.resource_name_p = (jerry_char_t *) file_path_p;
+        parse_options.resource_name_length = (size_t) strlen (file_path_p);
+
+        ret_value = jerry_parse (source_p,
                                  source_size,
-                                 parse_opts);
+                                 &parse_options);
 
         jerry_port_release_source (source_p);
 
@@ -204,7 +244,7 @@ restart:
       source_size = new_size;
     }
 
-    ret_value = jerry_parse (NULL, 0, (jerry_char_t *) source_p, source_size, JERRY_PARSE_NO_OPTS);
+    ret_value = jerry_parse ((jerry_char_t *) source_p, source_size, NULL);
     free (source_p);
 
     if (jerry_value_is_error (ret_value))
@@ -254,7 +294,7 @@ restart:
         continue;
       }
 
-      ret_value = jerry_parse (NULL, 0, (jerry_char_t *) str_p, len, JERRY_PARSE_NO_OPTS);
+      ret_value = jerry_parse ((jerry_char_t *) str_p, len, NULL);
 
       if (jerry_value_is_error (ret_value))
       {
@@ -273,10 +313,7 @@ restart:
       }
 
       const jerry_value_t args[] = { ret_value };
-      jerry_value_t ret_val_print = jerryx_handler_print (jerry_create_undefined (),
-                                                          jerry_create_undefined (),
-                                                          args,
-                                                          1);
+      jerry_value_t ret_val_print = jerryx_handler_print (NULL, args, 1);
       jerry_release_value (ret_val_print);
       jerry_release_value (ret_value);
       ret_value = jerry_run_all_enqueued_jobs ();

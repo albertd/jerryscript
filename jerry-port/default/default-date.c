@@ -59,12 +59,30 @@ static double FileTimeToUnixTimeMs (FILETIME ft)
 double jerry_port_get_local_time_zone_adjustment (double unix_ms,  /**< ms since unix epoch */
                                                   bool is_utc)  /**< is the time above in UTC? */
 {
-#ifdef _WIN32
+#if defined (HAVE_TM_GMTOFF)
+  struct tm tm;
+  time_t now = (time_t) (unix_ms / 1000);
+  localtime_r (&now, &tm);
+
+  if (!is_utc)
+  {
+    now -= tm.tm_gmtoff;
+    localtime_r (&now, &tm);
+  }
+
+  return ((double) tm.tm_gmtoff) * 1000;
+#elif defined (_WIN32)
   FILETIME fileTime, localFileTime;
   SYSTEMTIME systemTime, localSystemTime;
   ULARGE_INTEGER time, localTime;
 
   UnixTimeMsToFileTime (unix_ms, &fileTime);
+  /* If time is earlier than year 1601, then always using year 1601 to query time zone adjustment */
+  if (fileTime.dwHighDateTime >= 0x80000000)
+  {
+    fileTime.dwHighDateTime = 0;
+    fileTime.dwLowDateTime = 0;
+  }
 
   if (FileTimeToSystemTime (&fileTime, &systemTime)
       && SystemTimeToTzSpecificLocalTime (0, &systemTime, &localSystemTime)
@@ -76,6 +94,7 @@ double jerry_port_get_local_time_zone_adjustment (double unix_ms,  /**< ms since
     localTime.HighPart = localFileTime.dwHighDateTime;
     return (double) (((LONGLONG) localTime.QuadPart - (LONGLONG) time.QuadPart) / TicksPerMs);
   }
+  return 0.0;
 #elif defined (__GNUC__) || defined (__clang__)
   time_t now_time = (time_t) (unix_ms / 1000);
   double tza_s = 0.0;
@@ -104,11 +123,11 @@ double jerry_port_get_local_time_zone_adjustment (double unix_ms,  /**< ms since
   }
 
   return tza_s * 1000;
-#else /* !_WIN32 && !__GNUC__ && !__clang__ */
+#else /* !HAVE_TM_GMTOFF && !_WIN32 && !__GNUC__ && !__clang__ */
   (void) unix_ms; /* unused */
   (void) is_utc; /* unused */
   return 0.0;
-#endif /* _WIN32 */
+#endif /* HAVE_TM_GMTOFF */
 } /* jerry_port_get_local_time_zone_adjustment */
 
 /**

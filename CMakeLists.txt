@@ -15,8 +15,11 @@
 cmake_minimum_required (VERSION 2.8.12)
 project (Jerry C)
 
+if(NOT DEFINED PYTHON)
+  set(PYTHON "python")
+endif()
 # Determining version
-execute_process(COMMAND python ${CMAKE_SOURCE_DIR}/tools/version.py
+execute_process(COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tools/version.py
                 OUTPUT_VARIABLE JERRY_VERSION
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 
@@ -211,7 +214,10 @@ if(USING_GCC OR USING_CLANG)
   if(JERRY_MATH)
     jerry_add_compile_flags(-fno-builtin)
   endif()
-  jerry_add_compile_warnings(all extra format-nonliteral init-self conversion sign-conversion format-security missing-declarations shadow strict-prototypes undef old-style-definition)
+  jerry_add_compile_warnings(all extra format-nonliteral init-self sign-conversion format-security missing-declarations shadow strict-prototypes undef old-style-definition)
+  if(NOT "${PLATFORM}" STREQUAL "WINDOWS")
+    jerry_add_compile_warnings(conversion)
+  endif()
   jerry_add_compile_flags(-Wno-stack-protector -Wno-attributes -Werror)
 endif()
 

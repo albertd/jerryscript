@@ -26,9 +26,9 @@
 #include "re-compiler.h"
 #include "ecma-builtins.h"
 
-#if ENABLED (JERRY_DEBUGGER)
+#if JERRY_DEBUGGER
 #include "debugger.h"
-#endif /* ENABLED (JERRY_DEBUGGER) */
+#endif /* JERRY_DEBUGGER */
 
 /** \addtogroup ecma ECMA
  * @{
@@ -123,7 +123,7 @@ ecma_create_decl_lex_env (ecma_object_t *outer_lexical_environment_p) /**< outer
 
 /**
  * Create a object lexical environment with specified outer lexical environment
- * (or NULL if the environment is not nested), binding object and provided type flag.
+ * (or NULL if the environment is not nested), and binding object.
  *
  * See also: ECMA-262 v5, 10.2.1.2
  *
@@ -133,23 +133,15 @@ ecma_create_decl_lex_env (ecma_object_t *outer_lexical_environment_p) /**< outer
  */
 ecma_object_t *
 ecma_create_object_lex_env (ecma_object_t *outer_lexical_environment_p, /**< outer lexical environment */
-                            ecma_object_t *binding_obj_p, /**< binding object */
-                            ecma_lexical_environment_type_t type) /**< type of the new lexical environment */
+                            ecma_object_t *binding_obj_p) /**< binding object */
 {
-#if ENABLED (JERRY_ESNEXT)
-  JERRY_ASSERT (type == ECMA_LEXICAL_ENVIRONMENT_THIS_OBJECT_BOUND
-                || type == ECMA_LEXICAL_ENVIRONMENT_HOME_OBJECT_BOUND);
-#else /* !ENABLED (JERRY_ESNEXT) */
-  JERRY_ASSERT (type == ECMA_LEXICAL_ENVIRONMENT_THIS_OBJECT_BOUND);
-#endif /* ENABLED (JERRY_ESNEXT) */
-
   JERRY_ASSERT (binding_obj_p != NULL
                 && !ecma_is_lexical_environment (binding_obj_p));
 
   ecma_object_t *new_lexical_environment_p = ecma_alloc_object ();
 
-  const ecma_object_descriptor_t lexical_env_flag = ECMA_OBJECT_FLAG_BUILT_IN_OR_LEXICAL_ENV;
-  new_lexical_environment_p->type_flags_refs = (ecma_object_descriptor_t) (type | lexical_env_flag);
+  new_lexical_environment_p->type_flags_refs = (ECMA_OBJECT_FLAG_BUILT_IN_OR_LEXICAL_ENV
+                                                | ECMA_LEXICAL_ENVIRONMENT_THIS_OBJECT_BOUND);
 
   ecma_init_gc_info (new_lexical_environment_p);
 
@@ -160,6 +152,45 @@ ecma_create_object_lex_env (ecma_object_t *outer_lexical_environment_p, /**< out
 
   return new_lexical_environment_p;
 } /* ecma_create_object_lex_env */
+
+#if JERRY_ESNEXT
+
+/**
+ * Create a lexical environment with a specified size.
+ *
+ * @return pointer to the descriptor of the lexical environment
+ */
+ecma_object_t *
+ecma_create_lex_env_class (ecma_object_t *outer_lexical_environment_p, /**< outer lexical environment */
+                           size_t lexical_env_size) /**< size of the lexical environment */
+{
+  ecma_object_t *new_lexical_environment_p;
+
+  ecma_object_descriptor_t type_flags_refs = (ECMA_OBJECT_FLAG_BUILT_IN_OR_LEXICAL_ENV
+                                              | ECMA_LEXICAL_ENVIRONMENT_CLASS);
+
+  if (lexical_env_size > 0)
+  {
+    new_lexical_environment_p = (ecma_object_t *) ecma_alloc_extended_object (lexical_env_size);
+    type_flags_refs |= ECMA_OBJECT_FLAG_LEXICAL_ENV_HAS_DATA;
+  }
+  else
+  {
+    new_lexical_environment_p = ecma_alloc_object ();
+  }
+
+  new_lexical_environment_p->type_flags_refs = type_flags_refs;
+
+  ecma_init_gc_info (new_lexical_environment_p);
+
+  new_lexical_environment_p->u1.property_list_cp = JMEM_CP_NULL;
+
+  ECMA_SET_POINTER (new_lexical_environment_p->u2.outer_reference_cp, outer_lexical_environment_p);
+
+  return new_lexical_environment_p;
+} /* ecma_create_lex_env_class */
+
+#endif /* JERRY_ESNEXT */
 
 /**
  * Check if the object is lexical environment.
@@ -202,6 +233,29 @@ ecma_get_object_type (const ecma_object_t *object_p) /**< object */
 
   return (ecma_object_type_t) (object_p->type_flags_refs & ECMA_OBJECT_TYPE_MASK);
 } /* ecma_get_object_type */
+
+/**
+ * Get value of an object if the class matches
+ *
+ * @return value of the object if the class matches
+ *         ECMA_VALUE_NOT_FOUND otherwise
+ */
+extern inline bool JERRY_ATTR_ALWAYS_INLINE
+ecma_object_class_is (ecma_object_t *object_p, /**< object */
+                      ecma_object_class_type_t class_id) /**< class id */
+{
+  if (ecma_get_object_type (object_p) == ECMA_OBJECT_TYPE_CLASS)
+  {
+    ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) object_p;
+
+    if (ext_object_p->u.cls.type == (uint8_t) class_id)
+    {
+      return true;
+    }
+  }
+
+  return false;
+} /* ecma_object_class_is */
 
 /**
  * Check if the object is a built-in object
@@ -279,17 +333,18 @@ ecma_get_lex_env_type (const ecma_object_t *object_p) /**< lexical environment *
  *
  * @return pointer to ecma object
  */
-extern inline ecma_object_t *JERRY_ATTR_PURE
+extern inline ecma_object_t * JERRY_ATTR_PURE
 ecma_get_lex_env_binding_object (const ecma_object_t *object_p) /**< object-bound lexical environment */
 {
   JERRY_ASSERT (object_p != NULL);
   JERRY_ASSERT (ecma_is_lexical_environment (object_p));
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
   JERRY_ASSERT (ecma_get_lex_env_type (object_p) == ECMA_LEXICAL_ENVIRONMENT_THIS_OBJECT_BOUND
-                || ecma_get_lex_env_type (object_p) == ECMA_LEXICAL_ENVIRONMENT_HOME_OBJECT_BOUND);
-#else /* !ENABLED (JERRY_ESNEXT) */
+                || (ecma_get_lex_env_type (object_p) == ECMA_LEXICAL_ENVIRONMENT_CLASS
+                    && (object_p->type_flags_refs & ECMA_OBJECT_FLAG_LEXICAL_ENV_HAS_DATA) == 0));
+#else /* !JERRY_ESNEXT */
   JERRY_ASSERT (ecma_get_lex_env_type (object_p) == ECMA_LEXICAL_ENVIRONMENT_THIS_OBJECT_BOUND);
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
 
   return ECMA_GET_NON_NULL_POINTER (ecma_object_t, object_p->u1.bound_object_cp);
 } /* ecma_get_lex_env_binding_object */
@@ -390,7 +445,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
     ecma_property_header_t *first_property_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
                                                                           *property_list_head_p);
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
     bool has_hashmap = false;
 
     if (first_property_p->types[0] == ECMA_PROPERTY_TYPE_HASHMAP)
@@ -400,7 +455,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
                                                     *property_list_head_p);
       has_hashmap = true;
     }
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
 
     JERRY_ASSERT (ECMA_PROPERTY_IS_PROPERTY_PAIR (first_property_p));
 
@@ -424,7 +479,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
 
       first_property_pair_p->values[0] = value;
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
       /* The property must be fully initialized before ecma_property_hashmap_insert
        * is called, because the insert operation may reallocate the hashmap, and
        * that triggers garbage collection which scans all properties of all objects.
@@ -437,7 +492,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
                                       first_property_pair_p,
                                       0);
       }
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
 
       return first_property_pair_p->values + 0;
     }
@@ -449,7 +504,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
   /* Need to query property_list_head_p again and recheck the existennce
    * of property hasmap, because ecma_alloc_property_pair may delete them. */
   property_list_head_p = &object_p->u1.property_list_cp;
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
   bool has_hashmap = false;
 
   if (*property_list_head_p != ECMA_NULL_POINTER)
@@ -463,7 +518,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
       has_hashmap = true;
     }
   }
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
 
   /* Just copy the previous value (no need to decompress, compress). */
   first_property_pair_p->header.next_property_cp = *property_list_head_p;
@@ -489,7 +544,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
 
   first_property_pair_p->values[1] = value;
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
   /* See the comment before the other ecma_property_hashmap_insert above. */
 
   if (has_hashmap)
@@ -499,7 +554,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
                                   first_property_pair_p,
                                   1);
   }
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
 
   return first_property_pair_p->values + 1;
 } /* ecma_create_property */
@@ -554,19 +609,70 @@ ecma_create_named_accessor_property (ecma_object_t *object_p, /**< object */
   uint8_t type_and_flags = prop_attributes;
 
   ecma_property_value_t value;
-#if ENABLED (JERRY_CPOINTER_32_BIT)
+#if JERRY_CPOINTER_32_BIT
   ecma_getter_setter_pointers_t *getter_setter_pair_p;
   getter_setter_pair_p = jmem_pools_alloc (sizeof (ecma_getter_setter_pointers_t));
   ECMA_SET_POINTER (getter_setter_pair_p->getter_cp, get_p);
   ECMA_SET_POINTER (getter_setter_pair_p->setter_cp, set_p);
   ECMA_SET_NON_NULL_POINTER (value.getter_setter_pair_cp, getter_setter_pair_p);
-#else /* !ENABLED (JERRY_CPOINTER_32_BIT) */
+#else /* !JERRY_CPOINTER_32_BIT */
   ECMA_SET_POINTER (value.getter_setter_pair.getter_cp, get_p);
   ECMA_SET_POINTER (value.getter_setter_pair.setter_cp, set_p);
-#endif /* ENABLED (JERRY_CPOINTER_32_BIT) */
+#endif /* JERRY_CPOINTER_32_BIT */
 
   return ecma_create_property (object_p, name_p, type_and_flags, value, out_prop_p);
 } /* ecma_create_named_accessor_property */
+
+#if JERRY_MODULE_SYSTEM
+/**
+ * Create property reference
+ */
+void
+ecma_create_named_reference_property (ecma_object_t *object_p, /**< object */
+                                      ecma_string_t *name_p, /**< property name */
+                                      ecma_property_t *property_p) /**< referenced property */
+{
+  JERRY_ASSERT (object_p != NULL && name_p != NULL && property_p != NULL);
+  JERRY_ASSERT (ecma_find_named_property (object_p, name_p) == NULL);
+  JERRY_ASSERT ((ecma_is_lexical_environment (object_p)
+                 && ecma_get_lex_env_type (object_p) == ECMA_LEXICAL_ENVIRONMENT_CLASS
+                 && (object_p->type_flags_refs & ECMA_OBJECT_FLAG_LEXICAL_ENV_HAS_DATA))
+                || ecma_object_class_is (object_p, ECMA_OBJECT_CLASS_MODULE_NAMESPACE));
+
+  uint8_t type_and_flags = ECMA_PROPERTY_CONFIGURABLE_ENUMERABLE;
+
+  ecma_property_value_t *referenced_value_p = ECMA_PROPERTY_VALUE_PTR (property_p);
+  ecma_property_value_t value;
+
+  if (*property_p & ECMA_PROPERTY_FLAG_DATA)
+  {
+    jmem_cpointer_tag_t offset = (jmem_cpointer_tag_t) (((uintptr_t) property_p) & 0x1);
+
+#if JERRY_CPOINTER_32_BIT
+    if (offset != 0)
+    {
+      --referenced_value_p;
+    }
+#else /* !JERRY_CPOINTER_32_BIT */
+    if (offset == 0)
+    {
+      ++referenced_value_p;
+    }
+#endif /* JERRY_CPOINTER_32_BIT */
+
+    JERRY_ASSERT ((((uintptr_t) referenced_value_p) & (((uintptr_t) 1 << JMEM_ALIGNMENT_LOG) - 1)) == 0);
+
+    ECMA_SET_NON_NULL_POINTER_TAG (value.value, referenced_value_p, offset);
+  }
+  else
+  {
+    value.value = referenced_value_p->value;
+  }
+
+  ecma_create_property (object_p, name_p, type_and_flags, value, NULL);
+} /* ecma_create_named_reference_property */
+
+#endif /* JERRY_MODULE_SYSTEM */
 
 /**
  * Find named data property or named accessor property in a specified object.
@@ -583,19 +689,19 @@ ecma_find_named_property (ecma_object_t *obj_p, /**< object to find property in 
   JERRY_ASSERT (ecma_is_lexical_environment (obj_p)
                 || !ecma_op_object_is_fast_array (obj_p));
 
-  ecma_property_t *property_p = NULL;
-
-#if ENABLED (JERRY_LCACHE)
-  property_p = ecma_lcache_lookup (obj_p, name_p);
+#if JERRY_LCACHE
+  ecma_property_t *property_p = ecma_lcache_lookup (obj_p, name_p);
   if (property_p != NULL)
   {
     return property_p;
   }
-#endif /* ENABLED (JERRY_LCACHE) */
+#else /* !JERRY_LCACHE */
+  ecma_property_t *property_p = NULL;
+#endif /* JERRY_LCACHE */
 
   jmem_cpointer_t prop_iter_cp = obj_p->u1.property_list_cp;
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
   if (prop_iter_cp != JMEM_CP_NULL)
   {
     ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
@@ -606,21 +712,21 @@ ecma_find_named_property (ecma_object_t *obj_p, /**< object to find property in 
       property_p = ecma_property_hashmap_find ((ecma_property_hashmap_t *) prop_iter_p,
                                                name_p,
                                                &property_real_name_cp);
-#if ENABLED (JERRY_LCACHE)
+#if JERRY_LCACHE
       if (property_p != NULL
           && !ecma_is_property_lcached (property_p))
       {
         ecma_lcache_insert (obj_p, property_real_name_cp, property_p);
       }
-#endif /* ENABLED (JERRY_LCACHE) */
+#endif /* JERRY_LCACHE */
       return property_p;
     }
   }
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
   uint32_t steps = 0;
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
   jmem_cpointer_t property_name_cp = ECMA_NULL_POINTER;
 
   if (ECMA_IS_DIRECT_STRING (name_p))
@@ -657,9 +763,9 @@ ecma_find_named_property (ecma_object_t *obj_p, /**< object to find property in 
         break;
       }
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
       steps++;
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
       prop_iter_cp = prop_iter_p->next_property_cp;
     }
   }
@@ -698,27 +804,27 @@ ecma_find_named_property (ecma_object_t *obj_p, /**< object to find property in 
         }
       }
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
       steps++;
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
       prop_iter_cp = prop_iter_p->next_property_cp;
     }
   }
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
   if (steps >= (ECMA_PROPERTY_HASMAP_MINIMUM_SIZE / 2))
   {
     ecma_property_hashmap_create (obj_p);
   }
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
 
-#if ENABLED (JERRY_LCACHE)
+#if JERRY_LCACHE
   if (property_p != NULL
       && !ecma_is_property_lcached (property_p))
   {
     ecma_lcache_insert (obj_p, property_name_cp, property_p);
   }
-#endif /* ENABLED (JERRY_LCACHE) */
+#endif /* JERRY_LCACHE */
 
   return property_p;
 } /* ecma_find_named_property */
@@ -749,48 +855,6 @@ ecma_get_named_data_property (ecma_object_t *obj_p, /**< object to find property
 } /* ecma_get_named_data_property */
 
 /**
- * Free property values and change their type to deleted.
- *
- * Note:
- *     internal properties are not supported
- */
-void
-ecma_free_property (ecma_object_t *object_p, /**< object the property belongs to */
-                    jmem_cpointer_t name_cp, /**< name of the property or ECMA_NULL_POINTER */
-                    ecma_property_t *property_p) /**< property */
-{
-  JERRY_ASSERT (object_p != NULL && property_p != NULL);
-  JERRY_ASSERT (ECMA_PROPERTY_IS_RAW (*property_p));
-
-  if (*property_p & ECMA_PROPERTY_FLAG_DATA)
-  {
-    ecma_free_value_if_not_object (ECMA_PROPERTY_VALUE_PTR (property_p)->value);
-  }
-  else
-  {
-#if ENABLED (JERRY_CPOINTER_32_BIT)
-    ecma_getter_setter_pointers_t *getter_setter_pair_p;
-    getter_setter_pair_p = ECMA_GET_NON_NULL_POINTER (ecma_getter_setter_pointers_t,
-                                                      ECMA_PROPERTY_VALUE_PTR (property_p)->getter_setter_pair_cp);
-    jmem_pools_free (getter_setter_pair_p, sizeof (ecma_getter_setter_pointers_t));
-#endif /* ENABLED (JERRY_CPOINTER_32_BIT) */
-  }
-
-#if ENABLED (JERRY_LCACHE)
-  if (ecma_is_property_lcached (property_p))
-  {
-    ecma_lcache_invalidate (object_p, name_cp, property_p);
-  }
-#endif /* ENABLED (JERRY_LCACHE) */
-
-  if (ECMA_PROPERTY_GET_NAME_TYPE (*property_p) == ECMA_DIRECT_STRING_PTR)
-  {
-    ecma_string_t *prop_name_p = ECMA_GET_NON_NULL_POINTER (ecma_string_t, name_cp);
-    ecma_deref_ecma_string (prop_name_p);
-  }
-} /* ecma_free_property */
-
-/**
  * Delete the object's property referenced by its value pointer.
  *
  * Note: specified property must be owned by specified object.
@@ -803,7 +867,7 @@ ecma_delete_property (ecma_object_t *object_p, /**< object */
 
   ecma_property_header_t *prev_prop_p = NULL;
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
   ecma_property_hashmap_delete_status hashmap_status = ECMA_PROPERTY_HASHMAP_DELETE_NO_HASHMAP;
 
   if (cur_prop_cp != JMEM_CP_NULL)
@@ -818,7 +882,7 @@ ecma_delete_property (ecma_object_t *object_p, /**< object */
       hashmap_status = ECMA_PROPERTY_HASHMAP_DELETE_HAS_HASHMAP;
     }
   }
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
 
   while (cur_prop_cp != JMEM_CP_NULL)
   {
@@ -829,22 +893,22 @@ ecma_delete_property (ecma_object_t *object_p, /**< object */
 
     ecma_property_pair_t *prop_pair_p = (ecma_property_pair_t *) cur_prop_p;
 
-    for (int i = 0; i < ECMA_PROPERTY_PAIR_ITEM_COUNT; i++)
+    for (uint32_t i = 0; i < ECMA_PROPERTY_PAIR_ITEM_COUNT; i++)
     {
       if ((prop_pair_p->values + i) == prop_value_p)
       {
         JERRY_ASSERT (ECMA_PROPERTY_IS_NAMED_PROPERTY (cur_prop_p->types[i]));
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
         if (hashmap_status == ECMA_PROPERTY_HASHMAP_DELETE_HAS_HASHMAP)
         {
           hashmap_status = ecma_property_hashmap_delete (object_p,
                                                          prop_pair_p->names_cp[i],
                                                          cur_prop_p->types + i);
         }
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
 
-        ecma_free_property (object_p, prop_pair_p->names_cp[i], cur_prop_p->types + i);
+        ecma_gc_free_property (object_p, prop_pair_p, i);
         cur_prop_p->types[i] = ECMA_PROPERTY_TYPE_DELETED;
         prop_pair_p->names_cp[i] = LIT_INTERNAL_MAGIC_STRING_DELETED;
 
@@ -852,14 +916,14 @@ ecma_delete_property (ecma_object_t *object_p, /**< object */
 
         if (cur_prop_p->types[1 - i] != ECMA_PROPERTY_TYPE_DELETED)
         {
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
           /* The other property is still valid. */
           if (hashmap_status == ECMA_PROPERTY_HASHMAP_DELETE_RECREATE_HASHMAP)
           {
             ecma_property_hashmap_free (object_p);
             ecma_property_hashmap_create (object_p);
           }
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
           return;
         }
 
@@ -876,13 +940,13 @@ ecma_delete_property (ecma_object_t *object_p, /**< object */
 
         ecma_dealloc_property_pair ((ecma_property_pair_t *) cur_prop_p);
 
-#if ENABLED (JERRY_PROPRETY_HASHMAP)
+#if JERRY_PROPRETY_HASHMAP
         if (hashmap_status == ECMA_PROPERTY_HASHMAP_DELETE_RECREATE_HASHMAP)
         {
           ecma_property_hashmap_free (object_p);
           ecma_property_hashmap_create (object_p);
         }
-#endif /* ENABLED (JERRY_PROPRETY_HASHMAP) */
+#endif /* JERRY_PROPRETY_HASHMAP */
         return;
       }
     }
@@ -961,11 +1025,11 @@ ecma_named_data_property_assign_value (ecma_object_t *obj_p, /**< object */
 ecma_getter_setter_pointers_t *
 ecma_get_named_accessor_property (const ecma_property_value_t *prop_value_p) /**< property value reference */
 {
-#if ENABLED (JERRY_CPOINTER_32_BIT)
+#if JERRY_CPOINTER_32_BIT
   return ECMA_GET_NON_NULL_POINTER (ecma_getter_setter_pointers_t, prop_value_p->getter_setter_pair_cp);
-#else /* !ENABLED (JERRY_CPOINTER_32_BIT) */
+#else /* !JERRY_CPOINTER_32_BIT */
   return (ecma_getter_setter_pointers_t *) &prop_value_p->getter_setter_pair;
-#endif /* ENABLED (JERRY_CPOINTER_32_BIT) */
+#endif /* JERRY_CPOINTER_32_BIT */
 } /* ecma_get_named_accessor_property */
 
 /**
@@ -978,14 +1042,14 @@ ecma_set_named_accessor_property_getter (ecma_object_t *object_p, /**< the prope
 {
   ecma_assert_object_contains_the_property (object_p, prop_value_p, false);
 
-#if ENABLED (JERRY_CPOINTER_32_BIT)
+#if JERRY_CPOINTER_32_BIT
   ecma_getter_setter_pointers_t *getter_setter_pair_p;
   getter_setter_pair_p = ECMA_GET_NON_NULL_POINTER (ecma_getter_setter_pointers_t,
                                                     prop_value_p->getter_setter_pair_cp);
   ECMA_SET_POINTER (getter_setter_pair_p->getter_cp, getter_p);
-#else /* !ENABLED (JERRY_CPOINTER_32_BIT) */
+#else /* !JERRY_CPOINTER_32_BIT */
   ECMA_SET_POINTER (prop_value_p->getter_setter_pair.getter_cp, getter_p);
-#endif /* ENABLED (JERRY_CPOINTER_32_BIT) */
+#endif /* JERRY_CPOINTER_32_BIT */
 } /* ecma_set_named_accessor_property_getter */
 
 /**
@@ -998,15 +1062,45 @@ ecma_set_named_accessor_property_setter (ecma_object_t *object_p, /**< the prope
 {
   ecma_assert_object_contains_the_property (object_p, prop_value_p, false);
 
-#if ENABLED (JERRY_CPOINTER_32_BIT)
+#if JERRY_CPOINTER_32_BIT
   ecma_getter_setter_pointers_t *getter_setter_pair_p;
   getter_setter_pair_p = ECMA_GET_NON_NULL_POINTER (ecma_getter_setter_pointers_t,
                                                     prop_value_p->getter_setter_pair_cp);
   ECMA_SET_POINTER (getter_setter_pair_p->setter_cp, setter_p);
-#else /* !ENABLED (JERRY_CPOINTER_32_BIT) */
+#else /* !JERRY_CPOINTER_32_BIT */
   ECMA_SET_POINTER (prop_value_p->getter_setter_pair.setter_cp, setter_p);
-#endif /* ENABLED (JERRY_CPOINTER_32_BIT) */
+#endif /* JERRY_CPOINTER_32_BIT */
 } /* ecma_set_named_accessor_property_setter */
+
+#if JERRY_MODULE_SYSTEM
+
+/**
+ * Gets the referenced property value
+ *
+ * @return pointer to the value
+ */
+extern inline ecma_property_value_t * JERRY_ATTR_ALWAYS_INLINE
+ecma_get_property_value_from_named_reference (ecma_property_value_t *reference_p) /**< data property reference */
+{
+  ecma_value_t value = reference_p->value;
+  reference_p = ECMA_GET_NON_NULL_POINTER_FROM_POINTER_TAG (ecma_property_value_t, value);
+
+#if JERRY_CPOINTER_32_BIT
+  if (ECMA_GET_FIRST_BIT_FROM_POINTER_TAG (value))
+  {
+    ++reference_p;
+  }
+#else /* !JERRY_CPOINTER_32_BIT */
+  if (!ECMA_GET_FIRST_BIT_FROM_POINTER_TAG (value))
+  {
+    --reference_p;
+  }
+#endif /* JERRY_CPOINTER_32_BIT */
+
+  return reference_p;
+} /* ecma_get_property_value_from_named_reference */
+
+#endif /* JERRY_MODULE_SYSTEM */
 
 /**
  * Get property's 'Writable' attribute value
@@ -1107,7 +1201,7 @@ ecma_set_property_configurable_attr (ecma_property_t *property_p, /**< [in,out] 
   }
 } /* ecma_set_property_configurable_attr */
 
-#if ENABLED (JERRY_LCACHE)
+#if JERRY_LCACHE
 
 /**
  * Check whether the property is registered in LCache
@@ -1141,7 +1235,7 @@ ecma_set_property_lcached (ecma_property_t *property_p, /**< property */
   }
 } /* ecma_set_property_lcached */
 
-#endif /* ENABLED (JERRY_LCACHE) */
+#endif /* JERRY_LCACHE */
 
 /**
  * Construct empty property descriptor, i.e.:
@@ -1169,18 +1263,18 @@ ecma_make_empty_property_descriptor (void)
 void
 ecma_free_property_descriptor (ecma_property_descriptor_t *prop_desc_p) /**< property descriptor */
 {
-  if (prop_desc_p->flags & ECMA_PROP_IS_VALUE_DEFINED)
+  if (prop_desc_p->flags & JERRY_PROP_IS_VALUE_DEFINED)
   {
     ecma_free_value (prop_desc_p->value);
   }
 
-  if ((prop_desc_p->flags & ECMA_PROP_IS_GET_DEFINED)
+  if ((prop_desc_p->flags & JERRY_PROP_IS_GET_DEFINED)
       && prop_desc_p->get_p != NULL)
   {
     ecma_deref_object (prop_desc_p->get_p);
   }
 
-  if ((prop_desc_p->flags & ECMA_PROP_IS_SET_DEFINED)
+  if ((prop_desc_p->flags & JERRY_PROP_IS_SET_DEFINED)
       && prop_desc_p->set_p != NULL)
   {
     ecma_deref_object (prop_desc_p->set_p);
@@ -1188,12 +1282,6 @@ ecma_free_property_descriptor (ecma_property_descriptor_t *prop_desc_p) /**< pro
 
   *prop_desc_p = ecma_make_empty_property_descriptor ();
 } /* ecma_free_property_descriptor */
-
-/**
- * The size of error reference must be 8 bytes to use jmem_pools_alloc().
- */
-JERRY_STATIC_ASSERT (sizeof (ecma_extended_primitive_t) == 8,
-                     ecma_error_reference_size_must_be_8_bytes);
 
 /**
  * Increase ref count of an extended primitve value.
@@ -1228,7 +1316,7 @@ ecma_deref_error_reference (ecma_extended_primitive_t *error_ref_p) /**< error r
   }
 } /* ecma_deref_error_reference */
 
-#if ENABLED (JERRY_BUILTIN_BIGINT)
+#if JERRY_BUILTIN_BIGINT
 
 /**
  * Decrease ref count of a bigint value.
@@ -1253,7 +1341,7 @@ ecma_deref_bigint (ecma_extended_primitive_t *bigint_p) /**< bigint value */
   jmem_heap_free_block (bigint_p, mem_size);
 } /* ecma_deref_bigint */
 
-#endif /* ENABLED (JERRY_BUILTIN_BIGINT) */
+#endif /* JERRY_BUILTIN_BIGINT */
 
 /**
  * Create an error reference from a given value.
@@ -1410,7 +1498,19 @@ ecma_bytecode_deref (ecma_compiled_code_t *bytecode_p) /**< byte code pointer */
       }
     }
 
-#if ENABLED (JERRY_DEBUGGER)
+#if JERRY_ESNEXT
+    if (bytecode_p->status_flags & CBC_CODE_FLAGS_HAS_TAGGED_LITERALS)
+    {
+      ecma_collection_t *collection_p = ecma_compiled_code_get_tagged_template_collection (bytecode_p);
+
+      /* Since the objects in the tagged template collection are not strong referenced anymore by the compiled code
+         we can treat them as 'new' objects. */
+      JERRY_CONTEXT (ecma_gc_new_objects) += collection_p->item_count * 2;
+      ecma_collection_free_template_literal (collection_p);
+    }
+#endif /* JERRY_ESNEXT */
+
+#if JERRY_DEBUGGER
     if ((JERRY_CONTEXT (debugger_flags) & JERRY_DEBUGGER_CONNECTED)
         && !(bytecode_p->status_flags & CBC_CODE_FLAGS_DEBUGGER_IGNORE)
         && jerry_debugger_send_function_cp (JERRY_DEBUGGER_RELEASE_BYTE_CODE_CP, bytecode_p))
@@ -1442,31 +1542,19 @@ ecma_bytecode_deref (ecma_compiled_code_t *bytecode_p) /**< byte code pointer */
       JERRY_CONTEXT (debugger_byte_code_free_head) = byte_code_free_cp;
       return;
     }
-#endif /* ENABLED (JERRY_DEBUGGER) */
+#endif /* JERRY_DEBUGGER */
 
-#if ENABLED (JERRY_ESNEXT)
-    if (bytecode_p->status_flags & CBC_CODE_FLAGS_HAS_TAGGED_LITERALS)
-    {
-      ecma_collection_t *collection_p = ecma_compiled_code_get_tagged_template_collection (bytecode_p);
-
-      /* Since the objects in the tagged template collection are not strong referenced anymore by the compiled code
-         we can treat them as 'new' objects. */
-      JERRY_CONTEXT (ecma_gc_new_objects) += collection_p->item_count * 2;
-      ecma_collection_free_template_literal (collection_p);
-    }
-#endif /* ENABLED (JERRY_ESNEXT) */
-
-#if ENABLED (JERRY_MEM_STATS)
+#if JERRY_MEM_STATS
     jmem_stats_free_byte_code_bytes (((size_t) bytecode_p->size) << JMEM_ALIGNMENT_LOG);
-#endif /* ENABLED (JERRY_MEM_STATS) */
+#endif /* JERRY_MEM_STATS */
   }
   else
   {
-#if ENABLED (JERRY_BUILTIN_REGEXP)
+#if JERRY_BUILTIN_REGEXP
     re_compiled_code_t *re_bytecode_p = (re_compiled_code_t *) bytecode_p;
 
     ecma_deref_ecma_string (ecma_get_string_from_value (re_bytecode_p->source));
-#endif /* ENABLED (JERRY_BUILTIN_REGEXP) */
+#endif /* JERRY_BUILTIN_REGEXP */
   }
 
   jmem_heap_free_block (bytecode_p,
@@ -1499,7 +1587,7 @@ ecma_compiled_code_resolve_arguments_start (const ecma_compiled_code_t *bytecode
   return ((ecma_value_t *) byte_p) - ((cbc_uint16_arguments_t *) bytecode_header_p)->argument_end;
 } /* ecma_compiled_code_resolve_arguments_start */
 
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
 
 /**
  * Resolve the position of the function name of the compiled code
@@ -1552,7 +1640,7 @@ ecma_compiled_code_get_tagged_template_collection (const ecma_compiled_code_t *b
   return ECMA_GET_INTERNAL_VALUE_POINTER (ecma_collection_t, base_p[offset]);
 } /* ecma_compiled_code_get_tagged_template_collection */
 
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
 
 /**
  * Get the resource name of a compiled code.
@@ -1562,7 +1650,7 @@ ecma_compiled_code_get_tagged_template_collection (const ecma_compiled_code_t *b
 ecma_value_t
 ecma_get_resource_name (const ecma_compiled_code_t *bytecode_p) /**< compiled code */
 {
-#if ENABLED (JERRY_RESOURCE_NAME)
+#if JERRY_RESOURCE_NAME
   if (bytecode_p->status_flags & CBC_CODE_FLAGS_UINT16_ARGUMENTS)
   {
     cbc_uint16_arguments_t *args_p = (cbc_uint16_arguments_t *) bytecode_p;
@@ -1573,10 +1661,10 @@ ecma_get_resource_name (const ecma_compiled_code_t *bytecode_p) /**< compiled co
   cbc_uint8_arguments_t *args_p = (cbc_uint8_arguments_t *) bytecode_p;
   ecma_value_t *lit_pool_p = (ecma_value_t *) ((uint8_t *) bytecode_p + sizeof (cbc_uint8_arguments_t));
   return lit_pool_p[args_p->const_literal_end - args_p->register_end - 1];
-#else /* !ENABLED (JERRY_RESOURCE_NAME) */
+#else /* !JERRY_RESOURCE_NAME */
   JERRY_UNUSED (bytecode_p);
   return ecma_make_magic_string_value (LIT_MAGIC_STRING_RESOURCE_ANON);
-#endif /* !ENABLED (JERRY_RESOURCE_NAME) */
+#endif /* !JERRY_RESOURCE_NAME */
 } /* ecma_get_resource_name */
 
 #if (JERRY_STACK_LIMIT != 0)

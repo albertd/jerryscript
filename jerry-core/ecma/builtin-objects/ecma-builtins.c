@@ -265,38 +265,6 @@ ecma_builtin_get_property_count (ecma_builtin_id_t builtin_id) /**< built-in ID 
 } /* ecma_builtin_get_property_count */
 
 /**
- * Check if passed object is the instance of specified built-in.
- *
- * @return true  - if the object is instance of the specified built-in
- *         false - otherwise
- */
-bool
-ecma_builtin_is (ecma_object_t *object_p, /**< pointer to an object */
-                 ecma_builtin_id_t builtin_id) /**< id of built-in to check on */
-{
-  JERRY_ASSERT (object_p != NULL && !ecma_is_lexical_environment (object_p));
-  JERRY_ASSERT (builtin_id < ECMA_BUILTIN_ID__COUNT);
-
-  if (!ecma_get_object_is_builtin (object_p))
-  {
-    return false;
-  }
-
-  if (ECMA_BUILTIN_IS_EXTENDED_BUILT_IN (ecma_get_object_type (object_p)))
-  {
-    ecma_extended_built_in_object_t *extended_built_in_object_p = (ecma_extended_built_in_object_t *) object_p;
-
-    return (extended_built_in_object_p->built_in.id == builtin_id
-            && extended_built_in_object_p->built_in.routine_id == 0);
-  }
-
-  ecma_extended_object_t *built_in_object_p = (ecma_extended_object_t *) object_p;
-
-  return (built_in_object_p->u.built_in.id == builtin_id
-          && built_in_object_p->u.built_in.routine_id == 0);
-} /* ecma_builtin_is */
-
-/**
  * Check if passed object is a global built-in.
  *
  * @return true  - if the object is a global built-in
@@ -343,7 +311,7 @@ ecma_builtin_function_is_routine (ecma_object_t *func_obj_p) /**< function objec
   return (ext_func_obj_p->u.built_in.routine_id != 0);
 } /* ecma_builtin_function_is_routine */
 
-#if ENABLED (JERRY_BUILTIN_REALMS)
+#if JERRY_BUILTIN_REALMS
 
 /**
  * Get reference to the realm provided by another built-in object
@@ -373,7 +341,7 @@ ecma_builtin_get_realm (ecma_object_t *builtin_object_p) /**< built-in object */
   return ECMA_GET_INTERNAL_VALUE_POINTER (ecma_global_object_t, realm_value);
 } /* ecma_builtin_get_realm */
 
-#endif /* ENABLED (JERRY_BUILTIN_REALMS) */
+#endif /* JERRY_BUILTIN_REALMS */
 
 /**
  * Instantiate specified ECMA built-in object
@@ -394,7 +362,6 @@ ecma_instantiate_builtin (ecma_global_object_t *global_object_p, /**< global obj
 
   ecma_object_t *prototype_obj_p;
 
-  /* cppcheck-suppress arrayIndexOutOfBoundsCond */
   if (JERRY_UNLIKELY (object_prototype_builtin_id == ECMA_BUILTIN_ID__COUNT))
   {
     prototype_obj_p = NULL;
@@ -460,11 +427,11 @@ ecma_instantiate_builtin (ecma_global_object_t *global_object_p, /**< global obj
   built_in_props_p->routine_id = 0;
   built_in_props_p->u.length_and_bitset_size = 0;
   built_in_props_p->u2.instantiated_bitset[0] = 0;
-#if ENABLED (JERRY_BUILTIN_REALMS)
+#if JERRY_BUILTIN_REALMS
   ECMA_SET_INTERNAL_VALUE_POINTER (built_in_props_p->realm_value, global_object_p);
-#else /* !ENABLED (JERRY_BUILTIN_REALMS) */
+#else /* !JERRY_BUILTIN_REALMS */
   built_in_props_p->continue_instantiated_bitset[0] = 0;
-#endif /* ENABLED (JERRY_BUILTIN_REALMS) */
+#endif /* JERRY_BUILTIN_REALMS */
 
   if (property_count > ECMA_BUILTIN_INSTANTIATED_BITSET_MIN_SIZE)
   {
@@ -478,7 +445,7 @@ ecma_instantiate_builtin (ecma_global_object_t *global_object_p, /**< global obj
   /** Initializing [[PrimitiveValue]] properties of built-in prototype objects */
   switch (obj_builtin_id)
   {
-#if ENABLED (JERRY_BUILTIN_ARRAY)
+#if JERRY_BUILTIN_ARRAY
     case ECMA_BUILTIN_ID_ARRAY_PROTOTYPE:
     {
       JERRY_ASSERT (obj_type == ECMA_OBJECT_TYPE_ARRAY);
@@ -488,79 +455,78 @@ ecma_instantiate_builtin (ecma_global_object_t *global_object_p, /**< global obj
       ext_object_p->u.array.length_prop_and_hole_count = ECMA_PROPERTY_FLAG_WRITABLE | ECMA_PROPERTY_VIRTUAL;
       break;
     }
-#endif /* ENABLED (JERRY_BUILTIN_ARRAY) */
+#endif /* JERRY_BUILTIN_ARRAY */
 
-#if ENABLED (JERRY_BUILTIN_STRING)
+#if JERRY_BUILTIN_STRING
     case ECMA_BUILTIN_ID_STRING_PROTOTYPE:
     {
       JERRY_ASSERT (obj_type == ECMA_OBJECT_TYPE_CLASS);
       ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) obj_p;
 
-      ext_object_p->u.class_prop.class_id = LIT_MAGIC_STRING_STRING_UL;
-      ext_object_p->u.class_prop.u.value = ecma_make_magic_string_value (LIT_MAGIC_STRING__EMPTY);
+      ext_object_p->u.cls.type = ECMA_OBJECT_CLASS_STRING;
+      ext_object_p->u.cls.u3.value = ecma_make_magic_string_value (LIT_MAGIC_STRING__EMPTY);
       break;
     }
-#endif /* ENABLED (JERRY_BUILTIN_STRING) */
+#endif /* JERRY_BUILTIN_STRING */
 
-#if ENABLED (JERRY_BUILTIN_NUMBER)
+#if JERRY_BUILTIN_NUMBER
     case ECMA_BUILTIN_ID_NUMBER_PROTOTYPE:
     {
       JERRY_ASSERT (obj_type == ECMA_OBJECT_TYPE_CLASS);
       ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) obj_p;
 
-      ext_object_p->u.class_prop.class_id = LIT_MAGIC_STRING_NUMBER_UL;
-      ext_object_p->u.class_prop.u.value = ecma_make_integer_value (0);
+      ext_object_p->u.cls.type = ECMA_OBJECT_CLASS_NUMBER;
+      ext_object_p->u.cls.u3.value = ecma_make_integer_value (0);
       break;
     }
-#endif /* ENABLED (JERRY_BUILTIN_NUMBER) */
+#endif /* JERRY_BUILTIN_NUMBER */
 
-#if ENABLED (JERRY_BUILTIN_BOOLEAN)
+#if JERRY_BUILTIN_BOOLEAN
     case ECMA_BUILTIN_ID_BOOLEAN_PROTOTYPE:
     {
       JERRY_ASSERT (obj_type == ECMA_OBJECT_TYPE_CLASS);
       ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) obj_p;
 
-      ext_object_p->u.class_prop.class_id = LIT_MAGIC_STRING_BOOLEAN_UL;
-      ext_object_p->u.class_prop.u.value = ECMA_VALUE_FALSE;
+      ext_object_p->u.cls.type = ECMA_OBJECT_CLASS_BOOLEAN;
+      ext_object_p->u.cls.u3.value = ECMA_VALUE_FALSE;
       break;
     }
-#endif /* ENABLED (JERRY_BUILTIN_BOOLEAN) */
+#endif /* JERRY_BUILTIN_BOOLEAN */
 
-#if !ENABLED (JERRY_ESNEXT)
-#if ENABLED (JERRY_BUILTIN_DATE)
+#if !JERRY_ESNEXT
+#if JERRY_BUILTIN_DATE
     case ECMA_BUILTIN_ID_DATE_PROTOTYPE:
     {
       JERRY_ASSERT (obj_type == ECMA_OBJECT_TYPE_CLASS);
       ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) obj_p;
 
-      ext_object_p->u.class_prop.class_id = LIT_MAGIC_STRING_DATE_UL;
+      ext_object_p->u.cls.type = ECMA_OBJECT_CLASS_DATE;
 
       ecma_number_t *prim_prop_num_value_p = ecma_alloc_number ();
       *prim_prop_num_value_p = ecma_number_make_nan ();
-      ECMA_SET_INTERNAL_VALUE_POINTER (ext_object_p->u.class_prop.u.value, prim_prop_num_value_p);
+      ECMA_SET_INTERNAL_VALUE_POINTER (ext_object_p->u.cls.u3.value, prim_prop_num_value_p);
       break;
     }
-#endif /* ENABLED (JERRY_BUILTIN_DATE) */
+#endif /* JERRY_BUILTIN_DATE */
 
-#if ENABLED (JERRY_BUILTIN_REGEXP)
+#if JERRY_BUILTIN_REGEXP
     case ECMA_BUILTIN_ID_REGEXP_PROTOTYPE:
     {
       JERRY_ASSERT (obj_type == ECMA_OBJECT_TYPE_CLASS);
       ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) obj_p;
 
-      ext_object_p->u.class_prop.class_id = LIT_MAGIC_STRING_REGEXP_UL;
+      ext_object_p->u.cls.type = ECMA_OBJECT_CLASS_REGEXP;
 
       re_compiled_code_t *bc_p = re_compile_bytecode (ecma_get_magic_string (LIT_MAGIC_STRING_EMPTY_NON_CAPTURE_GROUP),
                                                       RE_FLAG_EMPTY);
 
       JERRY_ASSERT (bc_p != NULL);
 
-      ECMA_SET_INTERNAL_VALUE_POINTER (ext_object_p->u.class_prop.u.value, bc_p);
-
+      ECMA_SET_INTERNAL_VALUE_POINTER (ext_object_p->u.cls.u3.value, bc_p);
       break;
     }
-#endif /* ENABLED (JERRY_BUILTIN_REGEXP) */
-#endif /* !ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_BUILTIN_REGEXP */
+#endif /* !JERRY_ESNEXT */
     default:
     {
       JERRY_ASSERT (obj_type != ECMA_OBJECT_TYPE_CLASS);
@@ -592,11 +558,11 @@ ecma_builtin_create_global_object (void)
   /* Whenever this assertion fails, the size of extra_instantiated_bitset in ecma_global_object_t
    * must be increased and 32 must be added to these constants. Furthermore the new uint32 item
    * must be set to zero. */
-#if ENABLED (JERRY_BUILTIN_REALMS)
+#if JERRY_BUILTIN_REALMS
   JERRY_ASSERT (property_count <= ECMA_BUILTIN_INSTANTIATED_BITSET_MIN_SIZE + 64);
-#else /* !ENABLED (JERRY_BUILTIN_REALMS) */
+#else /* !JERRY_BUILTIN_REALMS */
   JERRY_ASSERT (property_count <= ECMA_BUILTIN_INSTANTIATED_BITSET_MIN_SIZE + 32);
-#endif /* ENABLED (JERRY_BUILTIN_REALMS) */
+#endif /* JERRY_BUILTIN_REALMS */
 
   ecma_object_t *object_p = ecma_create_object (NULL, sizeof (ecma_global_object_t), obj_type);
 
@@ -611,29 +577,27 @@ ecma_builtin_create_global_object (void)
   global_object_p->extended_object.u.built_in.u.length_and_bitset_size = 0;
   global_object_p->extended_object.u.built_in.u2.instantiated_bitset[0] = 0;
   global_object_p->extra_instantiated_bitset[0] = 0;
-#if ENABLED (JERRY_BUILTIN_REALMS)
+#if JERRY_BUILTIN_REALMS
   ECMA_SET_INTERNAL_VALUE_POINTER (global_object_p->extended_object.u.built_in.realm_value, global_object_p);
   global_object_p->extra_realms_bitset = 0;
   global_object_p->this_binding = ecma_make_object_value (object_p);
-#else /* !ENABLED (JERRY_BUILTIN_REALMS) */
+#else /* !JERRY_BUILTIN_REALMS */
   global_object_p->extended_object.u.built_in.continue_instantiated_bitset[0] = 0;
-#endif /* ENABLED (JERRY_BUILTIN_REALMS) */
+#endif /* JERRY_BUILTIN_REALMS */
 
   memset (global_object_p->builtin_objects, 0, (sizeof (jmem_cpointer_t) * ECMA_BUILTIN_OBJECTS_COUNT));
 
   /* Temporary self reference for GC mark. */
   ECMA_SET_NON_NULL_POINTER (global_object_p->global_env_cp, object_p);
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
   global_object_p->global_scope_cp = global_object_p->global_env_cp;
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
 
-  ecma_object_t *global_lex_env_p = ecma_create_object_lex_env (NULL,
-                                                                object_p,
-                                                                ECMA_LEXICAL_ENVIRONMENT_THIS_OBJECT_BOUND);
+  ecma_object_t *global_lex_env_p = ecma_create_object_lex_env (NULL, object_p);
   ECMA_SET_NON_NULL_POINTER (global_object_p->global_env_cp, global_lex_env_p);
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
   global_object_p->global_scope_cp = global_object_p->global_env_cp;
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
   ecma_deref_object (global_lex_env_p);
 
   ecma_object_t *prototype_object_p;
@@ -669,7 +633,7 @@ ecma_builtin_get (ecma_builtin_id_t builtin_id) /**< id of built-in to check on 
   return ECMA_GET_NON_NULL_POINTER (ecma_object_t, *builtin_p);
 } /* ecma_builtin_get */
 
-#if ENABLED (JERRY_BUILTIN_REALMS)
+#if JERRY_BUILTIN_REALMS
 
 /**
  * Get reference to specified built-in object using the realm provided by another built-in object
@@ -695,7 +659,7 @@ ecma_builtin_get_from_realm (ecma_global_object_t *global_object_p, /**< global 
   return ECMA_GET_NON_NULL_POINTER (ecma_object_t, *builtin_p);
 } /* ecma_builtin_get_from_realm */
 
-#endif /* ENABLED (JERRY_BUILTIN_REALMS) */
+#endif /* JERRY_BUILTIN_REALMS */
 
 /**
  * Get reference to specified built-in object using the realm provided by another built-in object
@@ -711,12 +675,12 @@ ecma_builtin_get_from_builtin (ecma_object_t *builtin_object_p, /**< built-in ob
 {
   JERRY_ASSERT (builtin_id < ECMA_BUILTIN_OBJECTS_COUNT);
 
-#if ENABLED (JERRY_BUILTIN_REALMS)
+#if JERRY_BUILTIN_REALMS
   return ecma_builtin_get_from_realm (ecma_builtin_get_realm (builtin_object_p), builtin_id);
-#else /* !ENABLED (JERRY_BUILTIN_REALMS) */
+#else /* !JERRY_BUILTIN_REALMS */
   JERRY_UNUSED (builtin_object_p);
   return ecma_builtin_get (builtin_id);
-#endif /* ENABLED (JERRY_BUILTIN_REALMS) */
+#endif /* JERRY_BUILTIN_REALMS */
 } /* ecma_builtin_get_from_builtin */
 
 /**
@@ -764,9 +728,9 @@ ecma_builtin_make_function_object_for_routine (ecma_object_t *builtin_object_p, 
   ext_func_obj_p->u.built_in.u.routine_index = (uint8_t) routine_index;
   ext_func_obj_p->u.built_in.u2.routine_flags = flags;
 
-#if ENABLED (JERRY_BUILTIN_REALMS)
+#if JERRY_BUILTIN_REALMS
   ext_func_obj_p->u.built_in.realm_value = built_in_props_p->realm_value;
-#endif /* ENABLED (JERRY_BUILTIN_REALMS) */
+#endif /* JERRY_BUILTIN_REALMS */
 
   return func_obj_p;
 } /* ecma_builtin_make_function_object_for_routine */
@@ -807,7 +771,7 @@ ecma_builtin_make_function_object_for_setter_accessor (ecma_object_t *builtin_ob
                                                         ECMA_BUILTIN_ROUTINE_SETTER);
 } /* ecma_builtin_make_function_object_for_setter_accessor */
 
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
 
 /**
  * Create specification defined properties for built-in native handlers.
@@ -858,7 +822,7 @@ ecma_builtin_native_handler_try_to_instantiate_property (ecma_object_t *object_p
   return prop_p;
 } /* ecma_builtin_native_handler_try_to_instantiate_property */
 
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
 
 /**
  * Lazy instantiation of builtin routine property of builtin object
@@ -879,12 +843,12 @@ ecma_builtin_routine_try_to_instantiate_property (ecma_object_t *object_p, /**< 
 
   ecma_extended_object_t *ext_func_p = (ecma_extended_object_t *) object_p;
 
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
   if (JERRY_UNLIKELY (ext_func_p->u.built_in.id == ECMA_BUILTIN_ID_HANDLER))
   {
     return ecma_builtin_native_handler_try_to_instantiate_property (object_p, string_p);
   }
-#endif /* !ENABLED (JERRY_ESNEXT) */
+#endif /* !JERRY_ESNEXT */
 
   if (ecma_string_is_length (string_p))
   {
@@ -893,7 +857,7 @@ ecma_builtin_routine_try_to_instantiate_property (ecma_object_t *object_p, /**< 
      */
     ecma_property_t *len_prop_p;
 
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
     uint8_t *bitset_p = &ext_func_p->u.built_in.u2.routine_flags;
 
     if (*bitset_p & ECMA_BUILTIN_ROUTINE_LENGTH_INITIALIZED)
@@ -909,14 +873,14 @@ ecma_builtin_routine_try_to_instantiate_property (ecma_object_t *object_p, /**< 
                                                                                string_p,
                                                                                ECMA_PROPERTY_FLAG_CONFIGURABLE,
                                                                                &len_prop_p);
-#else /* !ENABLED (JERRY_ESNEXT) */
+#else /* !JERRY_ESNEXT */
     /* We don't need to mark that the property was already lazy instantiated,
      * as it is non-configurable and so can't be deleted (ECMA-262 v5, 13.2.5) */
     ecma_property_value_t *len_prop_value_p = ecma_create_named_data_property (object_p,
                                                                                string_p,
                                                                                ECMA_PROPERTY_FIXED,
                                                                                &len_prop_p);
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
 
     uint8_t length = 0;
 
@@ -940,7 +904,7 @@ ecma_builtin_routine_try_to_instantiate_property (ecma_object_t *object_p, /**< 
     return len_prop_p;
   }
 
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
   /*
    * Lazy instantiation of 'name' property
    */
@@ -1016,7 +980,7 @@ ecma_builtin_routine_try_to_instantiate_property (ecma_object_t *object_p, /**< 
 
     return name_prop_p;
   }
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
 
   return NULL;
 } /* ecma_builtin_routine_try_to_instantiate_property */
@@ -1037,7 +1001,7 @@ ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, /**< object *
 
   lit_magic_string_id_t magic_string_id = ecma_get_string_magic (string_p);
 
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
   if (JERRY_UNLIKELY (ecma_prop_name_is_symbol (string_p)))
   {
     if (string_p->u.hash & ECMA_GLOBAL_SYMBOL_FLAG)
@@ -1045,7 +1009,7 @@ ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, /**< object *
       magic_string_id = (string_p->u.hash >> ECMA_GLOBAL_SYMBOL_SHIFT);
     }
   }
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
 
   if (magic_string_id == LIT_MAGIC_STRING__COUNT)
   {
@@ -1085,12 +1049,12 @@ ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, /**< object *
   uint32_t index = (uint32_t) (curr_property_p - property_list_p);
   uint8_t *bitset_p = built_in_props_p->u2.instantiated_bitset + (index >> 3);
 
-#if ENABLED (JERRY_BUILTIN_REALMS)
+#if JERRY_BUILTIN_REALMS
   if (index >= 8 * sizeof (uint8_t))
   {
     bitset_p += sizeof (ecma_value_t);
   }
-#endif /* ENABLED (JERRY_BUILTIN_REALMS) */
+#endif /* JERRY_BUILTIN_REALMS */
 
   uint8_t bit_for_index = (uint8_t) (1u << (index & 0x7));
 
@@ -1113,7 +1077,7 @@ ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, /**< object *
     {
       value = curr_property_p->value;
 
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_BUILTIN_GLOBAL_THIS
       if (value == ECMA_VALUE_GLOBAL_THIS)
       {
         /* Only the global object has globalThis property. */
@@ -1121,7 +1085,7 @@ ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, /**< object *
         ecma_ref_object (object_p);
         value = ecma_make_object_value (object_p);
       }
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_BUILTIN_GLOBAL_THIS */
       break;
     }
     case ECMA_BUILTIN_PROPERTY_NUMBER:
@@ -1138,11 +1102,11 @@ ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, /**< object *
         {
           ECMA_NUMBER_MAX_VALUE,
           ECMA_NUMBER_MIN_VALUE,
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
           ECMA_NUMBER_EPSILON,
           ECMA_NUMBER_MAX_SAFE_INTEGER,
           ECMA_NUMBER_MIN_SAFE_INTEGER,
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
           ECMA_NUMBER_E,
           ECMA_NUMBER_PI,
           ECMA_NUMBER_LN10,
@@ -1187,7 +1151,7 @@ ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, /**< object *
       value = ecma_make_magic_string_value ((lit_magic_string_id_t) curr_property_p->value);
       break;
     }
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
     case ECMA_BUILTIN_PROPERTY_SYMBOL:
     {
       lit_magic_string_id_t symbol_id = (lit_magic_string_id_t) curr_property_p->value;
@@ -1212,7 +1176,7 @@ ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, /**< object *
       ecma_ref_object (setter_p);
       break;
     }
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
     case ECMA_BUILTIN_PROPERTY_OBJECT:
     {
       ecma_object_t *builtin_object_p;
@@ -1286,7 +1250,7 @@ ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, /**< object *
   return prop_p;
 } /* ecma_builtin_try_to_instantiate_property */
 
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
 
 /**
  * List names of an Built-in native handler object's lazy instantiated properties,
@@ -1314,7 +1278,7 @@ ecma_builtin_native_handler_list_lazy_property_names (ecma_object_t *object_p, /
   }
 } /* ecma_builtin_native_handler_list_lazy_property_names */
 
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
 
 /**
  * List names of a built-in function's lazy instantiated properties
@@ -1331,7 +1295,7 @@ ecma_builtin_routine_list_lazy_property_names (ecma_object_t *object_p, /**< a b
   JERRY_ASSERT (ecma_get_object_type (object_p) == ECMA_OBJECT_TYPE_NATIVE_FUNCTION);
   JERRY_ASSERT (ecma_builtin_function_is_routine (object_p));
 
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
   ecma_extended_object_t *ext_func_p = (ecma_extended_object_t *) object_p;
 
   if (JERRY_UNLIKELY (ext_func_p->u.built_in.id == ECMA_BUILTIN_ID_HANDLER))
@@ -1352,11 +1316,11 @@ ecma_builtin_routine_list_lazy_property_names (ecma_object_t *object_p, /**< a b
     ecma_collection_push_back (prop_names_p, ecma_make_magic_string_value (LIT_MAGIC_STRING_NAME));
     prop_counter_p->string_named_props++;
   }
-#else /* !ENABLED (JERRY_ESNEXT) */
+#else /* !JERRY_ESNEXT */
   /* 'length' property is non-enumerable (ECMA-262 v5, 15) */
   ecma_collection_push_back (prop_names_p, ecma_make_magic_string_value (LIT_MAGIC_STRING_LENGTH));
   prop_counter_p->string_named_props++;
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
 } /* ecma_builtin_routine_list_lazy_property_names */
 
 /**
@@ -1395,11 +1359,11 @@ ecma_builtin_list_lazy_property_names (ecma_object_t *object_p, /**< a built-in 
   uint32_t index = 0;
   uint8_t bitset = built_in_props_p->u2.instantiated_bitset[0];
 
-#if ENABLED (JERRY_BUILTIN_REALMS)
+#if JERRY_BUILTIN_REALMS
   uint8_t *bitset_p = built_in_props_p->u2.instantiated_bitset + 1 + sizeof (ecma_value_t);
-#else /* !ENABLED (JERRY_BUILTIN_REALMS) */
+#else /* !JERRY_BUILTIN_REALMS */
   uint8_t *bitset_p = built_in_props_p->u2.instantiated_bitset + 1;
-#endif /* ENABLED (JERRY_BUILTIN_REALMS) */
+#endif /* JERRY_BUILTIN_REALMS */
 
   while (curr_property_p->magic_string_id != LIT_MAGIC_STRING__COUNT)
   {
@@ -1413,7 +1377,7 @@ ecma_builtin_list_lazy_property_names (ecma_object_t *object_p, /**< a built-in 
 
     if (curr_property_p->magic_string_id > LIT_NON_INTERNAL_MAGIC_STRING__COUNT)
     {
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
       if (LIT_IS_GLOBAL_SYMBOL (curr_property_p->magic_string_id))
       {
         ecma_string_t *name_p = ecma_op_get_global_symbol (curr_property_p->magic_string_id);
@@ -1429,7 +1393,7 @@ ecma_builtin_list_lazy_property_names (ecma_object_t *object_p, /**< a built-in 
           ecma_deref_ecma_string (name_p);
         }
       }
-#endif /* ENABLED (JERRY_ESNEXT) */
+#endif /* JERRY_ESNEXT */
     }
     else
     {
@@ -1511,13 +1475,13 @@ ecma_builtin_dispatch_call (ecma_object_t *obj_p, /**< built-in object */
 
   if (ecma_builtin_function_is_routine (obj_p))
   {
-#if ENABLED (JERRY_ESNEXT)
+#if JERRY_ESNEXT
     if (JERRY_UNLIKELY (ext_obj_p->u.built_in.id == ECMA_BUILTIN_ID_HANDLER))
     {
-      ecma_native_handler_t handler = ecma_builtin_handler_get (ext_obj_p->u.built_in.routine_id);
-      return handler (ecma_make_object_value (obj_p), this_arg_value, arguments_list_p, arguments_list_len);
+      ecma_builtin_handler_t handler = ecma_builtin_handler_get (ext_obj_p->u.built_in.routine_id);
+      return handler (obj_p, arguments_list_p, arguments_list_len);
     }
-#endif /* !ENABLED (JERRY_ESNEXT) */
+#endif /* !JERRY_ESNEXT */
 
     return ecma_builtin_dispatch_routine (ext_obj_p,
                                           this_arg_value,

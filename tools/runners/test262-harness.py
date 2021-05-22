@@ -67,7 +67,7 @@ M_YAML_MULTILINE_LIST = re.compile(r"^ *- (.*)$")
 
 
 # The timeout of each test case
-TEST262_CASE_TIMEOUT = 5
+TEST262_CASE_TIMEOUT = 180
 
 
 def yaml_load(string):
@@ -434,6 +434,12 @@ class TestResult(object):
     def report_outcome(self, long_format):
         name = self.case.get_name()
         mode = self.case.get_mode()
+
+        if self.exit_code != 0 and self.exit_code != 1:
+            sys.stderr.write(u"===%s failed in %s with negative:%s===\n"
+                             % (name, mode, self.case.get_negative_type()))
+            self.write_output(sys.stderr)
+
         if self.has_unexpected_outcome():
             if self.case.is_negative():
                 print("=== %s passed in %s, but was expected to fail ===" % (name, mode))

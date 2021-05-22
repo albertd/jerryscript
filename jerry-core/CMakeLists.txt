@@ -30,6 +30,7 @@ set(JERRY_MEM_STATS                 OFF          CACHE BOOL   "Enable memory sta
 set(JERRY_MEM_GC_BEFORE_EACH_ALLOC  OFF          CACHE BOOL   "Enable mem-stress test?")
 set(JERRY_PARSER_DUMP_BYTE_CODE     OFF          CACHE BOOL   "Enable parser byte-code dumps?")
 set(JERRY_PROFILE                   "es.next"    CACHE STRING "Use default or other profile?")
+set(JERRY_PROMISE_CALLBACK          OFF          CACHE BOOL   "Enable Promise callbacks?")
 set(JERRY_REGEXP_STRICT_MODE        OFF          CACHE BOOL   "Enable regexp strict mode?")
 set(JERRY_REGEXP_DUMP_BYTE_CODE     OFF          CACHE BOOL   "Enable regexp byte-code dumps?")
 set(JERRY_SNAPSHOT_EXEC             OFF          CACHE BOOL   "Enable executing snapshot files?")
@@ -87,6 +88,7 @@ message(STATUS "JERRY_MEM_STATS                " ${JERRY_MEM_STATS})
 message(STATUS "JERRY_MEM_GC_BEFORE_EACH_ALLOC " ${JERRY_MEM_GC_BEFORE_EACH_ALLOC})
 message(STATUS "JERRY_PARSER_DUMP_BYTE_CODE    " ${JERRY_PARSER_DUMP_BYTE_CODE} ${JERRY_PARSER_DUMP_MESSAGE})
 message(STATUS "JERRY_PROFILE                  " ${JERRY_PROFILE})
+message(STATUS "JERRY_PROMISE_CALLBACK         " ${JERRY_PROMISE_CALLBACK})
 message(STATUS "JERRY_REGEXP_STRICT_MODE       " ${JERRY_REGEXP_STRICT_MODE})
 message(STATUS "JERRY_REGEXP_DUMP_BYTE_CODE    " ${JERRY_REGEXP_DUMP_BYTE_CODE})
 message(STATUS "JERRY_SNAPSHOT_EXEC            " ${JERRY_SNAPSHOT_EXEC} ${JERRY_SNAPSHOT_EXEC_MESSAGE})
@@ -130,6 +132,7 @@ set(SOURCE_CORE_FILES
   debugger/debugger.c
   ecma/base/ecma-alloc.c
   ecma/base/ecma-gc.c
+  ecma/base/ecma-errors.c
   ecma/base/ecma-helpers-collection.c
   ecma/base/ecma-helpers-conversion.c
   ecma/base/ecma-helpers-errol.c
@@ -143,6 +146,8 @@ set(SOURCE_CORE_FILES
   ecma/base/ecma-literal-storage.c
   ecma/base/ecma-module.c
   ecma/base/ecma-property-hashmap.c
+  ecma/builtin-objects/ecma-builtin-aggregateerror.c
+  ecma/builtin-objects/ecma-builtin-aggregateerror-prototype.c
   ecma/builtin-objects/ecma-builtin-array-iterator-prototype.c
   ecma/builtin-objects/ecma-builtin-array-prototype-unscopables.c
   ecma/builtin-objects/ecma-builtin-array-prototype.c
@@ -218,6 +223,8 @@ set(SOURCE_CORE_FILES
   ecma/builtin-objects/ecma-builtin-urierror.c
   ecma/builtin-objects/ecma-builtin-weakmap-prototype.c
   ecma/builtin-objects/ecma-builtin-weakmap.c
+  ecma/builtin-objects/ecma-builtin-weakref-prototype.c
+  ecma/builtin-objects/ecma-builtin-weakref.c
   ecma/builtin-objects/ecma-builtin-weakset-prototype.c
   ecma/builtin-objects/ecma-builtin-weakset.c
   ecma/builtin-objects/ecma-builtins.c
@@ -321,6 +328,7 @@ if(ENABLE_AMALGAM)
     api/jerry-snapshot.h
     debugger/debugger.h
     ecma/base/ecma-alloc.h
+    ecma/base/ecma-errors.h
     ecma/base/ecma-gc.h
     ecma/base/ecma-globals.h
     ecma/base/ecma-helpers.h
@@ -329,6 +337,8 @@ if(ENABLE_AMALGAM)
     ecma/base/ecma-literal-storage.h
     ecma/base/ecma-module.h
     ecma/base/ecma-property-hashmap.h
+    ecma/builtin-objects/ecma-builtin-aggregateerror-prototype.inc.h
+    ecma/builtin-objects/ecma-builtin-aggregateerror.inc.h
     ecma/builtin-objects/ecma-builtin-array-iterator-prototype.inc.h
     ecma/builtin-objects/ecma-builtin-array-prototype-unscopables.inc.h
     ecma/builtin-objects/ecma-builtin-array-prototype.inc.h
@@ -406,6 +416,8 @@ if(ENABLE_AMALGAM)
     ecma/builtin-objects/ecma-builtin-urierror.inc.h
     ecma/builtin-objects/ecma-builtin-weakmap-prototype.inc.h
     ecma/builtin-objects/ecma-builtin-weakmap.inc.h
+    ecma/builtin-objects/ecma-builtin-weakref-prototype.inc.h
+    ecma/builtin-objects/ecma-builtin-weakref.inc.h
     ecma/builtin-objects/ecma-builtin-weakset-prototype.inc.h
     ecma/builtin-objects/ecma-builtin-weakset.inc.h
     ecma/builtin-objects/ecma-builtins-internal.h
@@ -476,7 +488,7 @@ if(ENABLE_AMALGAM)
   set(AMALGAM_CONFIG_H "${CMAKE_BINARY_DIR}/amalgam/jerryscript-config.h")
 
   add_custom_command(OUTPUT ${AMALGAM_CORE_C} ${AMALGAM_CORE_H}
-                     COMMAND python ${CMAKE_SOURCE_DIR}/tools/amalgam.py
+                     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tools/amalgam.py
                              --jerry-core
                              --output-dir ${CMAKE_BINARY_DIR}/amalgam
                      DEPENDS ${SOURCE_CORE_FILES}
@@ -581,6 +593,9 @@ if(EXISTS ${JERRY_PROFILE})
 else()
   message(FATAL_ERROR "Profile file: '${JERRY_PROFILE}' doesn't exist!")
 endif()
+
+# Promise callback
+jerry_add_define01(JERRY_PROMISE_CALLBACK)
 
 # RegExp strict mode
 jerry_add_define01(JERRY_REGEXP_STRICT_MODE)

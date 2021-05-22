@@ -132,14 +132,18 @@ test_internal_prop (void)
 
 static int test_data = 1;
 
-static void free_test_data (void *data_p)
+static void free_test_data (void *native_p, /**< native pointer */
+                            jerry_object_native_info_t *info_p) /**< native info */
 {
-  TEST_ASSERT ((int *) data_p == &test_data);
+  TEST_ASSERT ((int *) native_p == &test_data);
+  TEST_ASSERT (info_p->free_cb == free_test_data);
 } /* free_test_data */
 
 static const jerry_object_native_info_t test_info =
 {
-  .free_cb = free_test_data
+  .free_cb = free_test_data,
+  .number_of_references = 0,
+  .offset_of_references = 0,
 };
 
 static const jerry_char_t strict_equal_source[] = "var x = function(a, b) {return a === b;}; x";
@@ -183,12 +187,13 @@ main (void)
 {
   jerry_init (JERRY_INIT_EMPTY);
 
+  jerry_parse_options_t parse_options;
+  parse_options.options = JERRY_PARSE_STRICT_MODE;
+
   /* Render strict-equal as a function. */
-  jerry_value_t parse_result = jerry_parse (NULL,
-                                            0,
-                                            strict_equal_source,
+  jerry_value_t parse_result = jerry_parse (strict_equal_source,
                                             sizeof (strict_equal_source) - 1,
-                                            JERRY_PARSE_STRICT_MODE);
+                                            &parse_options);
   TEST_ASSERT (!jerry_value_is_error (parse_result));
   jerry_value_t strict_equal = jerry_run (parse_result);
   TEST_ASSERT (!jerry_value_is_error (strict_equal));
